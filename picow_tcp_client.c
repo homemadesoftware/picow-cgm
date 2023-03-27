@@ -249,6 +249,7 @@ static err_t hc_tcp_client_close(void *arg) {
     return err;
 }
 
+int EPD_2in13_V3_test2(char* message);
 
 int main() {
     stdio_init_all();
@@ -258,6 +259,8 @@ int main() {
         return 1;
     }
     cyw43_arch_enable_sta_mode();
+
+    EPD_2in13_V3_test2("connecting...");
 	
 	TCP_CLIENT_T* client = hc_alloc_client();
 
