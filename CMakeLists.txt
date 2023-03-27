@@ -12,7 +12,7 @@ pico_sdk_init()
 # rest of your project
 
 add_executable(hello_world
-main.c
+CGM_Display.c
 EPD_2in13_V3.c
 picow_tcp_client.c
 )
@@ -43,6 +43,7 @@ include_directories(lib/GUI)
 target_link_libraries(hello_world
         pico_cyw43_arch_lwip_threadsafe_background
         pico_stdlib
+        pico_stdio
         GUI 
         Fonts 
         Config 

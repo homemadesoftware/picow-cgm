@@ -8,6 +8,8 @@
 #include <string.h>
 #include <time.h>
 
+
+
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 
@@ -15,8 +17,12 @@
 #include "lwip/tcp.h"
 
 
+
+int CGM_InitDisplay();
+int CGM_printf(char *fmt, ...);
+
 #define TCP_PORT 4242
-#define DEBUG_printf printf
+#define DEBUG_printf CGM_printf
 #define BUF_SIZE 2048
 
 #define TEST_ITERATIONS 10
@@ -47,16 +53,16 @@ static err_t hc_tcp_client_poll(void *arg, struct tcp_pcb *tpcb);
 static void dump_bytes(const uint8_t *bptr, uint32_t len) {
     unsigned int i = 0;
 
-    printf("dump_bytes %d", len);
+    CGM_printf("dump_bytes %d", len);
     for (i = 0; i < len;) {
         if ((i & 0x0f) == 0) {
-            printf("\n");
+            CGM_printf("\n");
         } else if ((i & 0x07) == 0) {
-            printf(" ");
+            CGM_printf(" ");
         }
-        printf("%02x ", bptr[i++]);
+        CGM_printf("%02x ", bptr[i++]);
     }
-    printf("\n");
+    CGM_printf("\n");
 }
 #define DUMP_BYTES dump_bytes
 #else
@@ -218,14 +224,15 @@ static void hc_tcp_client_err(void *arg, err_t err) {
 static err_t hc_tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err) {
     TCP_CLIENT_T *state = (TCP_CLIENT_T*)arg;
     if (err != ERR_OK) {
-        printf("connect failed %d\n", err);
+        CGM_printf("connect failed %d\n", err);
         return hc_tcp_result(arg, err);
     }
     state->connected = true;
 	
-	//err_t err = tcp_write(tpcb, state->buffer, state->buffer_len, TCP_WRITE_FLAG_COPY);
+    char* request = "GET / HTTP/1.0";
+	tcp_write(tpcb, request, strlen(request) + 1, TCP_WRITE_FLAG_COPY);
 	
-    DEBUG_printf("Waiting for buffer from server\n");
+    CGM_printf("Waiting for buffer from server\n");
     return ERR_OK;
 }
 
@@ -249,29 +256,32 @@ static err_t hc_tcp_client_close(void *arg) {
     return err;
 }
 
-int EPD_2in13_V3_test2(char* message);
 
 int main() {
     stdio_init_all();
 
+    CGM_InitDisplay();
+
     if (cyw43_arch_init()) {
-        DEBUG_printf("failed to initialise\n");
+        CGM_printf("failed to initialise\n");
         return 1;
     }
     cyw43_arch_enable_sta_mode();
 
-    EPD_2in13_V3_test2("connecting...");
+    CGM_printf("connecting...");
 	
 	TCP_CLIENT_T* client = hc_alloc_client();
 
-    printf("Connecting to Wi-Fi...\n");
+    CGM_printf("Connecting to Wi-Fi...\n");
     if (cyw43_arch_wifi_connect_timeout_ms("You will be hacked", NULL, CYW43_AUTH_OPEN, 30000)) {
-        printf("failed to connect.\n");
+        CGM_printf("failed to connect.\n");
         return 1;
     } else {
-        printf("Connected.\n");
+        CGM_printf("Connected.\n");
     }
+
+    hc_run_tcp_client_test();
     //run_tcp_client_test();
-    cyw43_arch_deinit();
+    //cyw43_arch_deinit();
     return 0;
 }
