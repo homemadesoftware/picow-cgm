@@ -7,20 +7,34 @@
 #define MAX_BUFFER_LENGTH 4096
 
 
-
 err_t tcp_client_data_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
 err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
 err_t tcp_client_polling(void* arg, struct tcp_pcb *tpcb);
 err_t tcp_client_data_received(void* arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 void tcp_client_errored(void* arg, err_t err);
 
+enum ConnectionEvents
+{
+    Connected = 1,
+    SentData = 2,
+    ReceivedData = 3,
+    Closed = 4
+};
+
+class TCPConnection;
+
+typedef void (*Handler_t)(TCPConnection *connection, ConnectionEvents eventType);
+
 class TCPConnection
 {
+
     public:
-        TCPConnection();
+        TCPConnection(Handler_t handler);
         void SetRemoteAddressAndPort(char* address, u_int32_t port);
         void Connect();
-        void 
+        void SendData(uint8_t* buffer, uint16_t length);
+        void Close();
+        
 
     private: 
         struct tcp_pcb *pcb;
@@ -28,8 +42,12 @@ class TCPConnection
         u_int32_t target_port;
         uint8_t* pbuffer;
         uint16_t buffer_length;
+        Handler_t handler;
 
-        err_t DataReceived(struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
+        err_t ClientConnected(err_t err);
+        err_t DataReceived(struct pbuf *p, err_t err);
+        void DataSent();
+        
         
         friend err_t tcp_client_data_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
         friend err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
@@ -39,9 +57,9 @@ class TCPConnection
 
 };
 
-TCPConnection::TCPConnection()
+TCPConnection::TCPConnection(Handler_t handler)
 {
-    
+    this->handler = handler;
     this->pbuffer = (uint8_t*)calloc(1, MAX_BUFFER_LENGTH);
     this->buffer_length = 0;
 }
@@ -72,7 +90,31 @@ void TCPConnection::SetRemoteAddressAndPort(char* address, u_int32_t port)
     this->pcb = tcp_new_ip_type(IP_GET_TYPE(tcp_c->remote_addr));
 }
 
-err_t TCPConnection::DataReceived(struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+void TCPConnection::SendData(uint8_t* buffer, uint16_t length)
+{
+    tcp_write(this->pcb, buffer, length, TCP_WRITE_FLAG_COPY);
+}
+
+void TCPConnection::Close()
+{
+    err_t err = tcp_close(this->pcb);
+    tcp_arg(this->pcb, NULL);
+    tcp_poll(this->pcb, NULL, 0);
+    tcp_sent(this->pcb, NULL);
+    tcp_recv(this->pcb, NULL);
+    tcp_err(this->pcb, NULL);
+}
+
+err_t TCPConnection::ClientConnected(err_t err)
+{
+    cyw43_arch_lwip_check();
+
+    this->handler(this, ConnectionEvents::Connected);
+
+    return 0;
+}
+
+err_t TCPConnection::DataReceived(struct pbuf *p, err_t err)
 {
     cyw43_arch_lwip_check();
 
@@ -89,11 +131,19 @@ err_t TCPConnection::DataReceived(struct tcp_pcb *tpcb, struct pbuf *p, err_t er
             this->pbuffer + this->buffer_length,
             buffer_left, 0);
 
-        tcp_recved(tpcb, p->tot_len);
+        tcp_recved(this->pcb, p->tot_len);
     }
-
     pbuf_free(p);
+
+    this->handler(this, ConnectionEvents::ReceivedData);
+
     return 0;
+}
+
+void TCPConnection::DataSent()
+{
+    cyw43_arch_lwip_check();
+    this->handler(this, ConnectionEvents::SentData);
 }
 
 #define TCP_CONNECTION_FROM_ARG(arg) TCPConnection *tc = (TCPConnection*)arg
@@ -101,14 +151,13 @@ err_t TCPConnection::DataReceived(struct tcp_pcb *tpcb, struct pbuf *p, err_t er
 err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
-    return tc->ClientConnected(tpcb, p, err);
+    return tc->ClientConnected(err);
 }
-
 
 err_t tcp_client_data_received(void* arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
-    return tc->DataReceived(tpcb, p, err);
+    return tc->DataReceived(p, err);
 }
 
 err_t tcp_client_polling(void* arg, struct tcp_pcb *tpcb) 
@@ -120,6 +169,7 @@ err_t tcp_client_polling(void* arg, struct tcp_pcb *tpcb)
 err_t tcp_client_data_sent(void* arg, struct tcp_pcb *tpcb, u16_t len) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
+    tc->DataSent();
     return 0;
 }
 
