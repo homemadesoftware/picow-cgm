@@ -20,6 +20,8 @@
 
 int CGM_InitDisplay();
 int CGM_printf(char *fmt, ...);
+int CGM_ClearScreen();
+
 
 #define TCP_PORT 4242
 #define DEBUG_printf CGM_printf
@@ -280,8 +282,13 @@ int main() {
         CGM_printf("Connected.\n");
     }
 
-    hc_run_tcp_client_test();
+    //hc_run_tcp_client_test();
     //run_tcp_client_test();
     //cyw43_arch_deinit();
+
+    CGM_ClearScreen();
+
+    CGM_printf("Silly Ela. your dog has a flat face");
+
     return 0;
 }

@@ -41,11 +41,16 @@ int CGM_InitDisplay()
 
 int CGM_DisplayText(char* message)
 {
-    Paint_DrawString_EN(20, 15, message, &Font16, BLACK, WHITE);
+    Paint_DrawString_EN(0, 0, message, &Font16, WHITE, BLACK);
 
     EPD_2in13_V3_Display_Base(BlackImage);
     DEV_Delay_ms(3000);
 
+}
+
+int CGM_ClearScreen()
+{
+    Paint_Clear(WHITE);
 }
 
 int CGM_printf(char *fmt, ...)
