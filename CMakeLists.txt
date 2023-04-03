@@ -15,6 +15,7 @@ add_executable(hello_world
 CGM_Display.c
 EPD_2in13_V3.c
 picow_tcp_client.c
+tcp_client.cpp
 )
 
 # Add pico_stdlib library which aggregates commonly used features

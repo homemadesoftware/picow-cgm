@@ -2,7 +2,14 @@
     "files.associations": {
         "epd_2in13_v3.h": "c",
         "epd_test.h": "c",
-        "bit": "cpp"
+        "bit": "cpp",
+        "*.tcc": "c",
+        "string_view": "c",
+        "algorithm": "c",
+        "random": "c",
+        "istream": "c",
+        "limits": "c",
+        "numeric": "c"
     },
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
 }
