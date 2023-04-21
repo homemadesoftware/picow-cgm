@@ -5,7 +5,7 @@
 #include "EPD_Test.h"
 #include "EPD_2in13_V3.h"
 
-
+#include "CGM_Display.h"
 
 UBYTE *BlackImage;
 
@@ -39,27 +39,33 @@ int CGM_InitDisplay()
     return 0;
 }
 
-int CGM_DisplayText(char* message)
+int CGM_DisplayText(const char* message)
 {
     Paint_DrawString_EN(0, 0, message, &Font16, WHITE, BLACK);
 
     EPD_2in13_V3_Display_Base(BlackImage);
-    DEV_Delay_ms(3000);
+    DEV_Delay_ms(1000);
+
+    return 0;
 
 }
 
 int CGM_ClearScreen()
 {
     Paint_Clear(WHITE);
+
+    return 0;
 }
 
-int CGM_printf(char *fmt, ...)
+int CGM_printf(const char *fmt, ...)
 {
     char buffer[128];
-
+    
     va_list argptr;
     va_start(argptr, fmt);
-    sprintf(buffer, fmt, argptr);
+    vsnprintf(buffer, 128, fmt, argptr);
     va_end(argptr);
     CGM_DisplayText(buffer);
+
+    return 0;
 }

@@ -11,21 +11,21 @@ pico_sdk_init()
 
 # rest of your project
 
-add_executable(hello_world
-CGM_Display.c
-EPD_2in13_V3.c
-picow_tcp_client.c
-tcp_client.cpp
+add_executable(cgm_app
+        CGM_Display.c
+        EPD_2in13_V3.c
+        main.cpp
+        tcp_client.cpp
 )
 
 # Add pico_stdlib library which aggregates commonly used features
-target_link_libraries(hello_world pico_stdlib)
+target_link_libraries(cgm_app pico_stdlib)
 
 
-target_compile_definitions(hello_world PRIVATE
+target_compile_definitions(cgm_app PRIVATE
         )
 
-target_include_directories(hello_world PRIVATE
+target_include_directories(cgm_app PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/.. # for our common lwipopts
         )
@@ -41,7 +41,7 @@ include_directories(lib/Config)
 include_directories(lib/GUI)
 
 
-target_link_libraries(hello_world
+target_link_libraries(cgm_app
         pico_cyw43_arch_lwip_threadsafe_background
         pico_stdlib
         pico_stdio
@@ -53,6 +53,6 @@ target_link_libraries(hello_world
         )
 
 # create map/bin/hex/uf2 file in addition to ELF.
-pico_add_extra_outputs(hello_world)
+pico_add_extra_outputs(cgm_app)
 
 

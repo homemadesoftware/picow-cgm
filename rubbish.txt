@@ -1,27 +1,3 @@
-/**
- * Copyright (c) 2022 Raspberry Pi (Trading) Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
-
-#include <string.h>
-#include <time.h>
-
-
-
-#include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
-
-#include "lwip/pbuf.h"
-#include "lwip/tcp.h"
-
-
-
-int CGM_InitDisplay();
-int CGM_printf(char *fmt, ...);
-int CGM_ClearScreen();
-
 
 #define TCP_PORT 4242
 #define DEBUG_printf CGM_printf
@@ -256,39 +232,4 @@ static err_t hc_tcp_client_close(void *arg) {
         state->tcp_pcb = NULL;
     }
     return err;
-}
-
-
-int main() {
-    stdio_init_all();
-
-    CGM_InitDisplay();
-
-    if (cyw43_arch_init()) {
-        CGM_printf("failed to initialise\n");
-        return 1;
-    }
-    cyw43_arch_enable_sta_mode();
-
-    CGM_printf("connecting...");
-	
-	TCP_CLIENT_T* client = hc_alloc_client();
-
-    CGM_printf("Connecting to Wi-Fi...\n");
-    if (cyw43_arch_wifi_connect_timeout_ms("You will be hacked", NULL, CYW43_AUTH_OPEN, 30000)) {
-        CGM_printf("failed to connect.\n");
-        return 1;
-    } else {
-        CGM_printf("Connected.\n");
-    }
-
-    //hc_run_tcp_client_test();
-    //run_tcp_client_test();
-    //cyw43_arch_deinit();
-
-    CGM_ClearScreen();
-
-    CGM_printf("Silly Ela. your dog has a flat face");
-
-    return 0;
 }

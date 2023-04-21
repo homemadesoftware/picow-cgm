@@ -1,8 +1,12 @@
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
-
 #include "lwip/pbuf.h"
 #include "lwip/tcp.h"
+
+#include "tcp_client.h"
+
+#include "CGM_Display.h"
+
 
 #define MAX_BUFFER_LENGTH 4096
 
@@ -13,60 +17,26 @@ err_t tcp_client_polling(void* arg, struct tcp_pcb *tpcb);
 err_t tcp_client_data_received(void* arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 void tcp_client_errored(void* arg, err_t err);
 
-enum ConnectionEvents
-{
-    Connected = 1,
-    SentData = 2,
-    ReceivedData = 3,
-    Closed = 4
-};
 
-class TCPConnection;
 
-typedef void (*Handler_t)(TCPConnection *connection, ConnectionEvents eventType);
-
-class TCPConnection
-{
-
-    public:
-        TCPConnection(Handler_t handler);
-        void SetRemoteAddressAndPort(char* address, u_int32_t port);
-        void Connect();
-        void SendData(uint8_t* buffer, uint16_t length);
-        void Close();
-        
-
-    private: 
-        struct tcp_pcb *pcb;
-        ip_addr_t target_address;
-        u_int32_t target_port;
-        uint8_t* pbuffer;
-        uint16_t buffer_length;
-        Handler_t handler;
-
-        err_t ClientConnected(err_t err);
-        err_t DataReceived(struct pbuf *p, err_t err);
-        void DataSent();
-        
-        
-        friend err_t tcp_client_data_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
-        friend err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
-        friend err_t tcp_client_polling(void* arg, struct tcp_pcb *tpcb);
-        friend err_t tcp_client_data_received(void* arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
-        friend void tcp_client_errored(void* arg, err_t err);
-
-};
 
 TCPConnection::TCPConnection(Handler_t handler)
 {
     this->handler = handler;
     this->pbuffer = (uint8_t*)calloc(1, MAX_BUFFER_LENGTH);
     this->buffer_length = 0;
+    this->signature = 12345;
+
+    CGM_ClearScreen();
+    CGM_printf("s0 = %d", this->signature);
 }
 
 
 void TCPConnection::Connect()
 {
+    CGM_ClearScreen();
+    CGM_printf("s1 = %d", this->signature);
+
     this->buffer_length = 0;
 
     // Set the argument that needs to be called everywhere
@@ -83,11 +53,11 @@ void TCPConnection::Connect()
     cyw43_arch_lwip_end();
 }
 
-void TCPConnection::SetRemoteAddressAndPort(char* address, u_int32_t port)
+void TCPConnection::SetRemoteAddressAndPort(const char* address, u_int32_t port)
 {
     ip4addr_aton(address, &this->target_address);
     this->target_port = port;
-    this->pcb = tcp_new_ip_type(IP_GET_TYPE(tcp_c->remote_addr));
+    this->pcb = tcp_new_ip_type(IP_GET_TYPE());
 }
 
 void TCPConnection::SendData(uint8_t* buffer, uint16_t length)
@@ -105,10 +75,25 @@ void TCPConnection::Close()
     tcp_err(this->pcb, NULL);
 }
 
+err_t TCPConnection::GetError()
+{
+    return this->err;
+}
+
+const char* TCPConnection::GetBuffer()
+{
+    char* pbuf = (char*)calloc(1, this->buffer_length + 2);
+    memcpy(pbuf, this->pbuffer, this->buffer_length);
+    pbuf[this->buffer_length + 1] = 0;
+
+    return pbuf;
+}
+
 err_t TCPConnection::ClientConnected(err_t err)
 {
     cyw43_arch_lwip_check();
 
+    this->err = err;
     this->handler(this, ConnectionEvents::Connected);
 
     return 0;
