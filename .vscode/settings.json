@@ -11,5 +11,7 @@
         "limits": "c",
         "numeric": "c"
     },
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+
+    "makefile.makePath": "${workspaceRoot}/build/Makefile"
 }

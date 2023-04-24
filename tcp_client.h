@@ -1,4 +1,12 @@
 #include "pico/stdlib.h"
+#include "pico/mutex.h"
+#include "pico/stdlib.h"
+#include "pico/cyw43_arch.h"
+#include "lwip/pbuf.h"
+#include "lwip/tcp.h"
+#include <string.h>
+#include <time.h>
+
 
 
 class TcpConnection;
@@ -10,46 +18,36 @@ enum ConnectionEvents
     Connected = 1,
     SentData = 2,
     ReceivedData = 3,
-    Closed = 4
+    Errored = 4
 };
 
-
-
-typedef void (*Handler_t)(TcpConnection *connection, ConnectionEvents eventType);
 
 
 class TcpConnection
 {
 
     public:
-        TcpConnection(Handler_t handler);
-        void SetRemoteAddressAndPort(const char* address, u_int32_t port);
-        void Connect();
+        TcpConnection(const char* address, u_int32_t port);
+        void StartConnect();
+        TcpUserEvent* DequeueEvent();
         void SendData(uint8_t* buffer, uint16_t length);
         void Close();
-        err_t GetError();
-        const char* GetBuffer();
-        
 
     private: 
         struct tcp_pcb *pcb;
-        ip_addr_t target_address;
-        u_int32_t target_port;
-        uint8_t* pbuffer;
-        uint16_t buffer_length;
-        Handler_t handler;
-        err_t err;
-        int signature;
+        ip_addr_t targetAddress;
+        u_int32_t targetPort;
         TcpUserEvent* head;
         TcpUserEvent* tail;
+        recursive_mutex_t mutex;
 
         err_t ClientConnected(err_t err);
+        void ClientErrored(err_t err);
         err_t DataReceived(struct pbuf *p, err_t err);
         void DataSent();
-        void QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffer, uint16_t length);
-        TcpUserEvent* DequeueEvent();
-
         
+        void QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffer, uint16_t length);
+
         
         friend err_t tcp_client_data_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
         friend err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err);
@@ -110,6 +108,9 @@ class TcpUserEvent
         err_t error;
         uint8_t* buffer;
         uint16_t length;
+        TcpUserEvent* next;
+        friend class TcpConnection;  
+    
 
 
 };

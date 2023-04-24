@@ -1,8 +1,3 @@
-#include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
-#include "lwip/pbuf.h"
-#include "lwip/tcp.h"
-
 #include "tcp_client.h"
 
 #include "CGM_Display.h"
@@ -20,25 +15,20 @@ void tcp_client_errored(void* arg, err_t err);
 
 
 
-TcpConnection::TcpConnection(Handler_t handler)
+TcpConnection::TcpConnection(const char* address, u_int32_t port)
 {
-    this->handler = handler;
-    this->pbuffer = (uint8_t*)calloc(1, MAX_BUFFER_LENGTH);
-    this->buffer_length = 0;
-    this->signature = 12345;
+    this->head = nullptr;
+    this->tail = nullptr;
+    recursive_mutex_init(&mutex);
 
-    CGM_ClearScreen();
-    CGM_printf("s0 = %d", this->signature);
+    ip4addr_aton(address, &this->targetAddress);
+    this->targetPort = port;
+    this->pcb = tcp_new_ip_type(IP_GET_TYPE());
 }
 
 
-void TcpConnection::Connect()
+void TcpConnection::StartConnect()
 {
-    CGM_ClearScreen();
-    CGM_printf("s1 = %d", this->signature);
-
-    this->buffer_length = 0;
-
     // Set the argument that needs to be called everywhere
     tcp_arg(this->pcb, this);
 
@@ -49,15 +39,8 @@ void TcpConnection::Connect()
     tcp_err(this->pcb, tcp_client_errored);
 
     cyw43_arch_lwip_begin();
-    err_t err = tcp_connect(this->pcb, &this->target_address, this->target_port, tcp_client_connected);
+    err_t err = tcp_connect(this->pcb, &this->targetAddress, this->targetPort, tcp_client_connected);
     cyw43_arch_lwip_end();
-}
-
-void TcpConnection::SetRemoteAddressAndPort(const char* address, u_int32_t port)
-{
-    ip4addr_aton(address, &this->target_address);
-    this->target_port = port;
-    this->pcb = tcp_new_ip_type(IP_GET_TYPE());
 }
 
 void TcpConnection::SendData(uint8_t* buffer, uint16_t length)
@@ -75,52 +58,57 @@ void TcpConnection::Close()
     tcp_err(this->pcb, NULL);
 }
 
-err_t TcpConnection::GetError()
-{
-    return this->err;
-}
-
-const char* TcpConnection::GetBuffer()
-{
-    char* pbuf = (char*)calloc(1, this->buffer_length + 2);
-    memcpy(pbuf, this->pbuffer, this->buffer_length);
-    pbuf[this->buffer_length + 1] = 0;
-
-    return pbuf;
-}
-
 err_t TcpConnection::ClientConnected(err_t err)
 {
     cyw43_arch_lwip_check();
 
-    this->err = err;
-    this->handler(this, ConnectionEvents::Connected);
+    if (err != ERR_OK)
+    {
+        QueueEvent(ConnectionEvents::Errored, err, nullptr, 0);    
+    }
+    else
+    {
+        QueueEvent(ConnectionEvents::Connected, err, nullptr, 0);
+    }
 
-    return 0;
+    return err;
 }
 
 err_t TcpConnection::DataReceived(struct pbuf *p, err_t err)
 {
     cyw43_arch_lwip_check();
 
+    if (err != ERR_OK)
+    {
+        if (p != nullptr)
+        {
+            pbuf_free(p);
+        }
+        QueueEvent(ConnectionEvents::Errored, err, nullptr, 0);
+        return err;
+    }
+    
+    uint8_t* buffer = (uint8_t*)calloc(1, MAX_BUFFER_LENGTH + 1);
+    uint16_t bufferLength = 0;
+
     if (p->tot_len > 0) 
     {
         // Receive the buffer
-        uint16_t buffer_left = MAX_BUFFER_LENGTH - this->buffer_length;
+        uint16_t buffer_left = MAX_BUFFER_LENGTH - bufferLength;
         if (buffer_left > p->tot_len)
         {
             buffer_left = p->tot_len;
         }
 
-        this->buffer_length += pbuf_copy_partial(p, 
-            this->pbuffer + this->buffer_length,
+        bufferLength += pbuf_copy_partial(p, 
+            buffer + bufferLength,
             buffer_left, 0);
 
         tcp_recved(this->pcb, p->tot_len);
     }
     pbuf_free(p);
 
-    this->handler(this, ConnectionEvents::ReceivedData);
+    QueueEvent(ConnectionEvents::ReceivedData, err, buffer, bufferLength);
 
     return 0;
 }
@@ -128,7 +116,53 @@ err_t TcpConnection::DataReceived(struct pbuf *p, err_t err)
 void TcpConnection::DataSent()
 {
     cyw43_arch_lwip_check();
-    this->handler(this, ConnectionEvents::SentData);
+}
+
+void TcpConnection::ClientErrored(err_t err)
+{
+    QueueEvent(ConnectionEvents::Errored, err, nullptr, 0);
+}
+
+void TcpConnection::QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffer, uint16_t length)
+{
+    TcpUserEvent* newEvent = new TcpUserEvent(event, err, buffer, length);
+
+    recursive_mutex_enter_blocking(&mutex);
+
+    if (head == nullptr)
+    {
+        head = tail = newEvent;
+    }
+    else
+    {
+        tail->next = newEvent;
+        tail = newEvent;
+    }
+
+    recursive_mutex_exit(&mutex);
+}
+
+TcpUserEvent* TcpConnection::DequeueEvent()
+{
+    if (!recursive_mutex_enter_timeout_ms(&mutex, 100))
+    {
+        return nullptr;
+    }
+
+    if (head == nullptr)
+    {
+        return nullptr;
+    }
+    TcpUserEvent* recoveredEvent = head;
+    if (head == tail)
+    {
+        head = tail = nullptr;
+    }
+    head = head->next;
+
+    recursive_mutex_exit(&mutex);
+
+    return recoveredEvent;
 }
 
 #define TCP_CONNECTION_FROM_ARG(arg) TcpConnection *tc = (TcpConnection*)arg
@@ -161,6 +195,7 @@ err_t tcp_client_data_sent(void* arg, struct tcp_pcb *tpcb, u16_t len)
 void tcp_client_errored(void* arg, err_t err) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
+    tc->ClientErrored(err);
 }
 
 
