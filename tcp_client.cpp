@@ -20,7 +20,7 @@ void tcp_client_errored(void* arg, err_t err);
 
 
 
-TCPConnection::TCPConnection(Handler_t handler)
+TcpConnection::TcpConnection(Handler_t handler)
 {
     this->handler = handler;
     this->pbuffer = (uint8_t*)calloc(1, MAX_BUFFER_LENGTH);
@@ -32,7 +32,7 @@ TCPConnection::TCPConnection(Handler_t handler)
 }
 
 
-void TCPConnection::Connect()
+void TcpConnection::Connect()
 {
     CGM_ClearScreen();
     CGM_printf("s1 = %d", this->signature);
@@ -53,19 +53,19 @@ void TCPConnection::Connect()
     cyw43_arch_lwip_end();
 }
 
-void TCPConnection::SetRemoteAddressAndPort(const char* address, u_int32_t port)
+void TcpConnection::SetRemoteAddressAndPort(const char* address, u_int32_t port)
 {
     ip4addr_aton(address, &this->target_address);
     this->target_port = port;
     this->pcb = tcp_new_ip_type(IP_GET_TYPE());
 }
 
-void TCPConnection::SendData(uint8_t* buffer, uint16_t length)
+void TcpConnection::SendData(uint8_t* buffer, uint16_t length)
 {
     tcp_write(this->pcb, buffer, length, TCP_WRITE_FLAG_COPY);
 }
 
-void TCPConnection::Close()
+void TcpConnection::Close()
 {
     err_t err = tcp_close(this->pcb);
     tcp_arg(this->pcb, NULL);
@@ -75,12 +75,12 @@ void TCPConnection::Close()
     tcp_err(this->pcb, NULL);
 }
 
-err_t TCPConnection::GetError()
+err_t TcpConnection::GetError()
 {
     return this->err;
 }
 
-const char* TCPConnection::GetBuffer()
+const char* TcpConnection::GetBuffer()
 {
     char* pbuf = (char*)calloc(1, this->buffer_length + 2);
     memcpy(pbuf, this->pbuffer, this->buffer_length);
@@ -89,7 +89,7 @@ const char* TCPConnection::GetBuffer()
     return pbuf;
 }
 
-err_t TCPConnection::ClientConnected(err_t err)
+err_t TcpConnection::ClientConnected(err_t err)
 {
     cyw43_arch_lwip_check();
 
@@ -99,7 +99,7 @@ err_t TCPConnection::ClientConnected(err_t err)
     return 0;
 }
 
-err_t TCPConnection::DataReceived(struct pbuf *p, err_t err)
+err_t TcpConnection::DataReceived(struct pbuf *p, err_t err)
 {
     cyw43_arch_lwip_check();
 
@@ -125,13 +125,13 @@ err_t TCPConnection::DataReceived(struct pbuf *p, err_t err)
     return 0;
 }
 
-void TCPConnection::DataSent()
+void TcpConnection::DataSent()
 {
     cyw43_arch_lwip_check();
     this->handler(this, ConnectionEvents::SentData);
 }
 
-#define TCP_CONNECTION_FROM_ARG(arg) TCPConnection *tc = (TCPConnection*)arg
+#define TCP_CONNECTION_FROM_ARG(arg) TcpConnection *tc = (TcpConnection*)arg
 
 err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err) 
 {

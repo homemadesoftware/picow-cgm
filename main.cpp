@@ -19,7 +19,7 @@
 
 
 
-void MyTcpHandler(TCPConnection *connection, ConnectionEvents eventType)
+void MyTcpHandler(TcpConnection *connection, ConnectionEvents eventType)
 {
     switch (eventType)
     {
@@ -69,7 +69,7 @@ int main() {
 
     CGM_ClearScreen();
 
-    TCPConnection *tcp = new TCPConnection(MyTcpHandler);
+    TcpConnection *tcp = new TcpConnection(MyTcpHandler);
     tcp->SetRemoteAddressAndPort("4.234.223.103", 5001);
     tcp->Connect();
     
