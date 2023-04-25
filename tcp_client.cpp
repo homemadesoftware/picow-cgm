@@ -1,6 +1,5 @@
 #include "tcp_client.h"
 
-#include "CGM_Display.h"
 
 
 #define MAX_BUFFER_LENGTH 4096
@@ -77,6 +76,7 @@ err_t TcpConnection::ClientConnected(err_t err)
 err_t TcpConnection::DataReceived(struct pbuf *p, err_t err)
 {
     cyw43_arch_lwip_check();
+    
 
     if (err != ERR_OK)
     {
@@ -85,32 +85,36 @@ err_t TcpConnection::DataReceived(struct pbuf *p, err_t err)
             pbuf_free(p);
         }
         QueueEvent(ConnectionEvents::Errored, err, nullptr, 0);
-        return err;
+        return ERR_OK;
     }
     
-    uint8_t* buffer = (uint8_t*)calloc(1, MAX_BUFFER_LENGTH + 1);
+    uint8_t* buffer = nullptr;
     uint16_t bufferLength = 0;
 
-    if (p->tot_len > 0) 
+    if (p != nullptr) 
     {
-        // Receive the buffer
-        uint16_t buffer_left = MAX_BUFFER_LENGTH - bufferLength;
-        if (buffer_left > p->tot_len)
+        if (p->tot_len > 0)
         {
-            buffer_left = p->tot_len;
+            // Receive the buffer
+            uint16_t bytesToCopy = p->tot_len;
+            if (bytesToCopy > MAX_BUFFER_LENGTH)
+            {
+                bytesToCopy = MAX_BUFFER_LENGTH;
+            }
+
+            buffer = (uint8_t*)calloc(1, bytesToCopy + 1);
+
+            pbuf_copy_partial(p, buffer, bytesToCopy, 0);
+
+            tcp_recved(this->pcb, p->tot_len);
+                
         }
-
-        bufferLength += pbuf_copy_partial(p, 
-            buffer + bufferLength,
-            buffer_left, 0);
-
-        tcp_recved(this->pcb, p->tot_len);
+        pbuf_free(p);
     }
-    pbuf_free(p);
 
     QueueEvent(ConnectionEvents::ReceivedData, err, buffer, bufferLength);
 
-    return 0;
+    return ERR_OK;
 }
 
 void TcpConnection::DataSent()
@@ -127,9 +131,9 @@ void TcpConnection::QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffe
 {
     TcpUserEvent* newEvent = new TcpUserEvent(event, err, buffer, length);
 
-    recursive_mutex_enter_blocking(&mutex);
+    //recursive_mutex_enter_blocking(&mutex);
 
-    if (head == nullptr)
+    if (tail == nullptr)
     {
         head = tail = newEvent;
     }
@@ -139,28 +143,32 @@ void TcpConnection::QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffe
         tail = newEvent;
     }
 
-    recursive_mutex_exit(&mutex);
+    //recursive_mutex_exit(&mutex);
 }
 
 TcpUserEvent* TcpConnection::DequeueEvent()
 {
+    /*
     if (!recursive_mutex_enter_timeout_ms(&mutex, 100))
     {
         return nullptr;
+    }*/
+
+    TcpUserEvent* recoveredEvent = nullptr;
+    if (head != nullptr)
+    {
+        recoveredEvent = head;
+        if (head == tail)
+        {
+            head = tail = nullptr;
+        }
+        else
+        {
+            head = head->next;
+        }
     }
 
-    if (head == nullptr)
-    {
-        return nullptr;
-    }
-    TcpUserEvent* recoveredEvent = head;
-    if (head == tail)
-    {
-        head = tail = nullptr;
-    }
-    head = head->next;
-
-    recursive_mutex_exit(&mutex);
+    //recursive_mutex_exit(&mutex);
 
     return recoveredEvent;
 }

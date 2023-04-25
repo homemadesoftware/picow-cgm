@@ -31,8 +31,6 @@ int main() {
     }
     cyw43_arch_enable_sta_mode();
 
-    CGM_DisplayText("connecting...");
-
     CGM_ClearScreen();
 	
     CGM_DisplayText("Connecting to Wi-Fi...");
@@ -60,6 +58,9 @@ int main() {
     {
         TcpUserEvent* nextEvent;
         nextEvent = tcp->DequeueEvent();
+        CGM_ClearScreen();
+        CGM_printf("ev: %d", nextEvent);
+
         while (nextEvent != nullptr)
         {
             ConnectionEvents eventType = nextEvent->GetEvent();
@@ -72,7 +73,7 @@ int main() {
                 
                 case ConnectionEvents::ReceivedData :
                     CGM_ClearScreen();
-                    CGM_printf("Received %d", nextEvent->GetBuffer());
+                    CGM_printf("Received %s", nextEvent->GetBuffer());
                 break;
 
                 case ConnectionEvents::Errored :
@@ -81,8 +82,8 @@ int main() {
                 break;
             }
 
-            nextEvent->FreeBuffer();
-            free(nextEvent);
+            //nextEvent->FreeBuffer();
+            //delete nextEvent;
             
             sleep_ms(50);
             nextEvent = tcp->DequeueEvent();

@@ -71,6 +71,7 @@ class TcpUserEvent
             this->error = error;
             this->buffer = buffer;
             this->length = length;
+            this->next = nullptr;
         }
 
         ConnectionEvents GetEvent()
