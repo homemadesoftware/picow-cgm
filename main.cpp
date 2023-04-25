@@ -1,23 +1,62 @@
 #include "tcp_client.h"
 #include "CGM_Display.h"
 
-
-
-void MyTcpHandler(TcpConnection *connection, ConnectionEvents eventType)
+int pollServerOnce()
 {
-    switch (eventType)
+    CGM_ClearScreen();
+
+    TcpConnection *tcp = new TcpConnection("4.234.223.103", 5001);
+    tcp->StartConnect();
+    
+    while (true)
     {
-        case ConnectionEvents::Connected :
+        TcpUserEvent* nextEvent;
+        nextEvent = tcp->DequeueEvent();
 
-        break;
+        while (nextEvent != nullptr)
+        {
+            ConnectionEvents eventType = nextEvent->GetEvent();
+            switch (eventType)
+            {
+                case ConnectionEvents::Connected :
+                    CGM_ClearScreen();
+                    CGM_DisplayText("Connected.");
+                break;
+                
+                case ConnectionEvents::ReceivedData :
+                    CGM_ClearScreen();
+                    CGM_printf("Received %s", nextEvent->GetBuffer());
+                    tcp->Close();
+                break;
 
-        case ConnectionEvents::ReceivedData :
+                case ConnectionEvents::Errored :
+                    CGM_ClearScreen();
+                    CGM_printf("Errored %d", nextEvent->GetError());
+                    tcp->Close();
+                break;
+
+            }
+            delete nextEvent;
+
+            if (tcp->IsClosed())
+            {
+                break;
+            }
             
-        break;
+            sleep_ms(100);
+            nextEvent = tcp->DequeueEvent();
+        }
+        if (tcp->IsClosed())
+        {
+            delete tcp;
+            tcp = nullptr;
+            return 0;
+        }
+
+        sleep_ms(100);
     }
+
 }
-
-
 
 int main() {
     stdio_init_all();
@@ -48,49 +87,11 @@ int main() {
     
     sleep_ms(1000);
 
-
-    CGM_ClearScreen();
-
-    TcpConnection *tcp = new TcpConnection("4.234.223.103", 5001);
-    tcp->StartConnect();
-    
     while (true)
     {
-        TcpUserEvent* nextEvent;
-        nextEvent = tcp->DequeueEvent();
-        CGM_ClearScreen();
-        CGM_printf("ev: %d", nextEvent);
-
-        while (nextEvent != nullptr)
-        {
-            ConnectionEvents eventType = nextEvent->GetEvent();
-            switch (eventType)
-            {
-                case ConnectionEvents::Connected :
-                    CGM_ClearScreen();
-                    CGM_DisplayText("Connected.");
-                break;
-                
-                case ConnectionEvents::ReceivedData :
-                    CGM_ClearScreen();
-                    CGM_printf("Received %s", nextEvent->GetBuffer());
-                break;
-
-                case ConnectionEvents::Errored :
-                    CGM_ClearScreen();
-                    CGM_printf("Errored %d", nextEvent->GetError());
-                break;
-            }
-
-            //nextEvent->FreeBuffer();
-            //delete nextEvent;
-            
-            sleep_ms(50);
-            nextEvent = tcp->DequeueEvent();
-        }
-        sleep_ms(50);
+        pollServerOnce();
     }
-
+   
 
     //CGM_printf("Silly Ela. your dog has a flat face");
     //cyw43_arch_deinit();

@@ -28,10 +28,12 @@ class TcpConnection
 
     public:
         TcpConnection(const char* address, u_int32_t port);
+        ~TcpConnection();
         void StartConnect();
         TcpUserEvent* DequeueEvent();
         void SendData(uint8_t* buffer, uint16_t length);
         void Close();
+        bool IsClosed();
 
     private: 
         struct tcp_pcb *pcb;
@@ -74,6 +76,16 @@ class TcpUserEvent
             this->next = nullptr;
         }
 
+        ~TcpUserEvent()
+        {
+            if (buffer != nullptr)
+            {
+                free(buffer);
+                buffer = nullptr;
+                length = 0;
+            }
+        }
+
         ConnectionEvents GetEvent()
         {
             return event;
@@ -94,15 +106,6 @@ class TcpUserEvent
             return length;
         }
 
-        void FreeBuffer()
-        {
-            if (buffer != nullptr)
-            {
-                free(buffer);
-                buffer = nullptr;
-                length = 0;
-            }
-        }
 
     private:
         ConnectionEvents event;        

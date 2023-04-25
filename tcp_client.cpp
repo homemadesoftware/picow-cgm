@@ -18,11 +18,27 @@ TcpConnection::TcpConnection(const char* address, u_int32_t port)
 {
     this->head = nullptr;
     this->tail = nullptr;
+    this->pcb  = nullptr;
+
     recursive_mutex_init(&mutex);
 
     ip4addr_aton(address, &this->targetAddress);
     this->targetPort = port;
     this->pcb = tcp_new_ip_type(IP_GET_TYPE());
+}
+
+
+TcpConnection::~TcpConnection()
+{
+    while (TcpUserEvent* pe = DequeueEvent())
+    {
+        delete pe;
+    }
+}
+
+bool TcpConnection::IsClosed()
+{
+    return pcb == nullptr; 
 }
 
 
@@ -48,13 +64,15 @@ void TcpConnection::SendData(uint8_t* buffer, uint16_t length)
 }
 
 void TcpConnection::Close()
-{
-    err_t err = tcp_close(this->pcb);
-    tcp_arg(this->pcb, NULL);
+{ 
     tcp_poll(this->pcb, NULL, 0);
     tcp_sent(this->pcb, NULL);
     tcp_recv(this->pcb, NULL);
     tcp_err(this->pcb, NULL);
+    tcp_arg(this->pcb, NULL);
+
+    tcp_close(this->pcb);
+    this->pcb  = nullptr;   
 }
 
 err_t TcpConnection::ClientConnected(err_t err)
@@ -131,7 +149,7 @@ void TcpConnection::QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffe
 {
     TcpUserEvent* newEvent = new TcpUserEvent(event, err, buffer, length);
 
-    //recursive_mutex_enter_blocking(&mutex);
+    recursive_mutex_enter_blocking(&mutex);
 
     if (tail == nullptr)
     {
@@ -143,16 +161,15 @@ void TcpConnection::QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffe
         tail = newEvent;
     }
 
-    //recursive_mutex_exit(&mutex);
+    recursive_mutex_exit(&mutex);
 }
 
 TcpUserEvent* TcpConnection::DequeueEvent()
 {
-    /*
     if (!recursive_mutex_enter_timeout_ms(&mutex, 100))
     {
         return nullptr;
-    }*/
+    }
 
     TcpUserEvent* recoveredEvent = nullptr;
     if (head != nullptr)
@@ -168,7 +185,7 @@ TcpUserEvent* TcpConnection::DequeueEvent()
         }
     }
 
-    //recursive_mutex_exit(&mutex);
+    recursive_mutex_exit(&mutex);
 
     return recoveredEvent;
 }
