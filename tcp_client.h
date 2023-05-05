@@ -21,7 +21,18 @@ enum ConnectionEvents
     Errored = 4
 };
 
+class TcpConnectionStaticData 
+{
+    public :
+        
+        TcpConnectionStaticData()
+        {
+            recursive_mutex_init(&mutex);
+        }
 
+        recursive_mutex_t mutex;
+
+} ;
 
 class TcpConnection
 {
@@ -34,6 +45,7 @@ class TcpConnection
         void SendData(uint8_t* buffer, uint16_t length);
         void Close();
         bool IsClosed();
+        
 
     private: 
         struct tcp_pcb *pcb;
@@ -41,7 +53,6 @@ class TcpConnection
         u_int32_t targetPort;
         TcpUserEvent* head;
         TcpUserEvent* tail;
-        recursive_mutex_t mutex;
 
         err_t ClientConnected(err_t err);
         void ClientErrored(err_t err);
@@ -118,3 +129,4 @@ class TcpUserEvent
 
 
 };
+

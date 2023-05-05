@@ -7,4 +7,7 @@
 // This example uses a common include to avoid repetition
 #include "lwipopts_examples_common.h"
 
+#undef  TCP_DEBUG
+#define TCP_DEBUG                   LWIP_DBG_ON
+
 #endif
