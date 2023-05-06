@@ -42,7 +42,7 @@ bool TcpConnection::IsClosed()
 
 void TcpConnection::StartConnect()
 {
-    printf("sc01\r\n");
+    //printf("sc01\r\n");
 
     // Set the argument that needs to be called everywhere
     tcp_arg(this->pcb, this);
@@ -53,15 +53,15 @@ void TcpConnection::StartConnect()
     tcp_recv(this->pcb, tcp_client_data_received);
     tcp_err(this->pcb, tcp_client_errored);
     
-    printf("sc02\r\n");
+    //printf("sc02\r\n");
 
 
     cyw43_arch_lwip_begin();
 
-    printf("sc03\r\n");
+    //printf("sc03\r\n");
 
     err_t err = tcp_connect(this->pcb, &this->targetAddress, this->targetPort, tcp_client_connected);
-    printf("sc04. err: %d\r\n", err);
+    //printf("sc04. err: %d\r\n", err);
 
     cyw43_arch_lwip_end();
 
@@ -76,8 +76,16 @@ void TcpConnection::SendData(uint8_t* buffer, uint16_t length)
 
 void TcpConnection::Close()
 { 
-    tcp_close(this->pcb);
-    this->pcb  = nullptr;   
+    if (this->pcb != nullptr)
+    {
+        tcp_poll(this->pcb, nullptr, 0);
+        tcp_sent(this->pcb, nullptr);
+        tcp_recv(this->pcb, nullptr);
+        tcp_err(this->pcb, nullptr);
+        
+        tcp_close(this->pcb);
+        this->pcb  = nullptr;   
+    }
 }
 
 err_t TcpConnection::ClientConnected(err_t err)
@@ -153,6 +161,9 @@ void TcpConnection::DataSent()
 
 void TcpConnection::ClientErrored(err_t err)
 {
+    // turns out, the pcb is already freed by the time this is called 
+    this->pcb  = nullptr;   
+
     QueueEvent(ConnectionEvents::Errored, err, nullptr, 0);
 }
 
@@ -177,8 +188,12 @@ void TcpConnection::QueueEvent(ConnectionEvents event, err_t err, uint8_t* buffe
 
 TcpUserEvent* TcpConnection::DequeueEvent()
 {
+    //printf("try enter mutex\r\n");
+
     if (!recursive_mutex_enter_timeout_ms(&staticallyInitialisedData.mutex, 100))
     {
+        //printf("failed enter mutex\r\n");
+
         return nullptr;
     }
 
@@ -197,6 +212,8 @@ TcpUserEvent* TcpConnection::DequeueEvent()
     }
 
     recursive_mutex_exit(&staticallyInitialisedData.mutex);
+    //printf("left mutex, %x\r\n", recoveredEvent);
+
 
     return recoveredEvent;
 }

@@ -42,9 +42,6 @@ int ReadTextStream()
                 case ConnectionEvents::Errored :
                     CGM_ClearScreen();
                     CGM_printf("Errored %d, %d", nextEvent->GetError(), ++counter);
-                    printf("Closing\r\n");
-                    tcp->Close();
-                    printf("Closed\r\n");
                 break;
 
             }
@@ -192,7 +189,8 @@ int main()
     {
         CGM_ClearScreen();
 
-        ReadBitmapStream();
+        //ReadBitmapStream();
+        ReadTextStream();
     }
    
 
