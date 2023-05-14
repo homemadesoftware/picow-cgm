@@ -47,27 +47,18 @@ int CGM_DisplayText(const char* message)
 
     EPD_2in13_V3_Display_Base(BlackImage);
     DEV_Delay_ms(500);
-
-    printf("Display complete\r\n");
-
     return 0;
 
 }
 
 int CGM_DisplayBitmap(const unsigned char* image)
 {
-    EPD_2in13_V3_Display_Base(image);
+    EPD_2in13_V3_Display_Base((unsigned char*)image);
 }
 
 int CGM_ClearScreen()
 {
-    printf("Clear screen\r\n");
-
     Paint_Clear(WHITE);
-
-    printf("Clear screen complete\r\n");
-
-
     return 0;
 }
 

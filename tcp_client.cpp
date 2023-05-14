@@ -1,5 +1,5 @@
 #include "tcp_client.h"
-
+#include "time.h"
 
 
 #define MAX_BUFFER_LENGTH 4096
@@ -13,16 +13,20 @@ void tcp_client_errored(void* arg, err_t err);
 
 static TcpConnectionStaticData staticallyInitialisedData;
 
-TcpConnection::TcpConnection(const char* address, u_int32_t port)
+static u_int32_t idCounter;
+
+TcpConnection::TcpConnection(const char* address, u_int32_t port, int timeOutSeconds)
 {
+    this->timesOutAt = clock() + timeOutSeconds * CLOCKS_PER_SEC;
     this->head = nullptr;
     this->tail = nullptr;
     this->pcb  = nullptr;
 
-
     ip4addr_aton(address, &this->targetAddress);
     this->targetPort = port;
     this->pcb = tcp_new_ip_type(IP_GET_TYPE());
+    this->id = ++idCounter;
+    printf("newtcp: %X, id:%d timesOut: %ld\r\n", this->pcb, this->id, this->timesOutAt / CLOCKS_PER_SEC);
 }
 
 
@@ -34,6 +38,11 @@ TcpConnection::~TcpConnection()
     }
 }
 
+bool TcpConnection::HasTimedOut()
+{
+    return clock() >= this->timesOutAt;
+}
+
 bool TcpConnection::IsClosed()
 {
     return pcb == nullptr; 
@@ -42,8 +51,6 @@ bool TcpConnection::IsClosed()
 
 void TcpConnection::StartConnect()
 {
-    //printf("sc01\r\n");
-
     // Set the argument that needs to be called everywhere
     tcp_arg(this->pcb, this);
 
@@ -52,21 +59,12 @@ void TcpConnection::StartConnect()
     tcp_sent(this->pcb, tcp_client_data_sent);
     tcp_recv(this->pcb, tcp_client_data_received);
     tcp_err(this->pcb, tcp_client_errored);
-    
-    //printf("sc02\r\n");
-
 
     cyw43_arch_lwip_begin();
 
-    //printf("sc03\r\n");
-
     err_t err = tcp_connect(this->pcb, &this->targetAddress, this->targetPort, tcp_client_connected);
-    //printf("sc04. err: %d\r\n", err);
 
     cyw43_arch_lwip_end();
-
-    printf("sc05\r\n");
-
 }
 
 void TcpConnection::SendData(uint8_t* buffer, uint16_t length)
@@ -90,22 +88,16 @@ void TcpConnection::Close()
 
 err_t TcpConnection::ClientConnected(err_t err)
 {
-    printf("cc01\r\n");
     cyw43_arch_lwip_check();
-
-    printf("cc02\r\n");
 
     if (err != ERR_OK)
     {
-        printf("cc03\r\n");
         QueueEvent(ConnectionEvents::Errored, err, nullptr, 0);    
     }
     else
     {
-        printf("cc04\r\n");
         QueueEvent(ConnectionEvents::Connected, err, nullptr, 0);
     }
-    printf("cc04\r\n");
     return err;
 }
 
@@ -223,14 +215,12 @@ TcpUserEvent* TcpConnection::DequeueEvent()
 err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
-    printf("c: %X", tpcb);
     return tc->ClientConnected(err);
 }
 
 err_t tcp_client_data_received(void* arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
-    printf("dr: %X", arg);
     return tc->DataReceived(p, err);
 }
 
@@ -238,13 +228,12 @@ err_t tcp_client_polling(void* arg, struct tcp_pcb *tpcb)
 {
     TCP_CONNECTION_FROM_ARG(arg);
     printf("cp: %X", arg);
-    return 0;
+    return 1;
 }
 
 err_t tcp_client_data_sent(void* arg, struct tcp_pcb *tpcb, u16_t len) 
 {
     TCP_CONNECTION_FROM_ARG(arg);
-    printf("ds: %X", arg);
     tc->DataSent();
     return 0;
 }

@@ -3,82 +3,35 @@
 
 int counter = 0;
 
-int ReadTextStream();
-int ReadBitmapStream();
+bool ReadBitmapStream();
 
-
-
-int ReadTextStream()
-{
-    TcpConnection *tcp = new TcpConnection("4.234.223.103", 5001);
-    tcp->StartConnect();
-    
-    while (true)
-    {
-        printf(".");
-        TcpUserEvent* nextEvent;
-        nextEvent = tcp->DequeueEvent();
-
-        while (nextEvent != nullptr)
-        {
-            ConnectionEvents eventType = nextEvent->GetEvent();          
-            printf("Picked event, type: %d, addr: %X\r\n", eventType, nextEvent);
-
-            switch (eventType)
-            {
-                case ConnectionEvents::Connected :
-                    CGM_ClearScreen();
-                    CGM_printf("Connected. %d", ++counter);
-                break;
-                
-                case ConnectionEvents::ReceivedData :
-                    CGM_ClearScreen();
-                    CGM_printf("R:%s, %d", nextEvent->GetBuffer(), ++counter);
-                    printf("Closing\r\n");
-                    tcp->Close();
-                    printf("Closed\r\n");
-                break;
-
-                case ConnectionEvents::Errored :
-                    CGM_ClearScreen();
-                    CGM_printf("Errored %d, %d", nextEvent->GetError(), ++counter);
-                break;
-
-            }
-            delete nextEvent;
-
-            if (tcp->IsClosed())
-            {
-                break;
-            }
-            
-            sleep_ms(100);
-            nextEvent = tcp->DequeueEvent();
-        }
-        if (tcp->IsClosed())
-        {
-            printf("Deleting tcp\r\n");
-            delete tcp;
-            tcp = nullptr;
-            printf("Returning\r\n");
-            return 0;
-        }
-
-        sleep_ms(100);
-    }
-
+extern "C" {
+    void tcp_debug_print_pcbs(void);
+    extern struct tcp_pcb *tcp_active_pcbs;
 }
 
-int ReadBitmapStream()
+
+bool ReadBitmapStream()
 {
+    tcp_debug_print_pcbs();
+
+    while (tcp_active_pcbs != nullptr)
+    {
+        printf("Waiting for all tcps to clear\r\n");
+        sleep_ms(1000);
+    } 
+
     const int imageSize = (128 / 8) * 250;
+    bool hasErrored = false;
 
-    TcpConnection *tcp = new TcpConnection("4.234.223.103", 5002);
+    TcpConnection *tcp = new TcpConnection("4.234.223.103", 5002, 30);
     tcp->StartConnect();
-    
-    unsigned char* combinedBuffer = nullptr;
-    unsigned int totalSize = 0;
 
+
+    unsigned int totalSize = imageSize;
+    unsigned char* combinedBuffer = static_cast<unsigned char *>(malloc(totalSize));
+    unsigned int usedSize = 0; 
+    
     while (true)
     {
         printf(".");
@@ -97,24 +50,17 @@ int ReadBitmapStream()
                     {
                         unsigned char* partBuffer = nextEvent->GetBuffer();
                         int partLength = nextEvent->GetBufferLength();
-                        printf("len: %d", partLength);
-                        unsigned char* newBuffer = static_cast<unsigned char*>(malloc(totalSize + partLength));
-                        if (combinedBuffer != nullptr)
+                        if (usedSize + partLength > totalSize)
                         {
-                            memcpy(newBuffer, combinedBuffer, totalSize);
+                            partLength = totalSize - usedSize;
                         }
-                        memcpy(newBuffer + totalSize, partBuffer, partLength);
-                        void* previousBuffer = combinedBuffer;
-                        combinedBuffer = newBuffer;
-                        totalSize += partLength;
-                        if (previousBuffer != nullptr)
+                       
+                        memcpy(combinedBuffer + usedSize, partBuffer, partLength);
+                        usedSize += partLength;
+
+                        if (usedSize >= imageSize)
                         {
-                            free(previousBuffer);
-                        }
-                        
-                        if (totalSize >= imageSize)
-                        {
-                            //CGM_ClearScreen();
+                            CGM_ClearScreen();
                             CGM_DisplayBitmap(static_cast<unsigned char*>(combinedBuffer));
                             tcp->Close();
                         }
@@ -125,6 +71,7 @@ int ReadBitmapStream()
                     CGM_ClearScreen();
                     CGM_printf("Errored %d, %d", nextEvent->GetError(), ++counter);
                     tcp->Close();
+                    hasErrored = true;
                 break;
 
             }
@@ -138,15 +85,20 @@ int ReadBitmapStream()
             sleep_ms(100);
             nextEvent = tcp->DequeueEvent();
         }
+
+        if (tcp->HasTimedOut())
+        {
+            CGM_ClearScreen();
+            CGM_printf("Timed out");
+            tcp->Close();
+        }
+
         if (tcp->IsClosed())
         {
             delete tcp;
             tcp = nullptr;
-            if (combinedBuffer != nullptr)
-            {
-                free(combinedBuffer);
-            }
-            return 0;
+            free(combinedBuffer);
+            return !hasErrored;
         }
 
         sleep_ms(100);
@@ -168,35 +120,48 @@ int main()
     }
     cyw43_arch_enable_sta_mode();
 
-    CGM_ClearScreen();
+    bool needToConnect = true;
+    while (true)
+    {
+        if (needToConnect)
+        {
+            CGM_ClearScreen();
 	
-    CGM_DisplayText("Connecting to Wi-Fi...");
-    if (cyw43_arch_wifi_connect_timeout_ms("You will be hacked", NULL, CYW43_AUTH_OPEN, 30000)) 
-    {
-        CGM_ClearScreen();
-        CGM_DisplayText("failed to connect.");
-        return 1;
-    } 
-    else 
-    {
-        CGM_ClearScreen();
-        CGM_DisplayText("Wi-Fi Connected.");
+            CGM_DisplayText("Connecting to Wi-Fi...");
+            if (cyw43_arch_wifi_connect_timeout_ms("HC", "nfwi6536", CYW43_AUTH_WPA2_AES_PSK, 30000)) 
+            {
+                CGM_ClearScreen();
+                CGM_DisplayText("failed to connect.");
+            } 
+            else 
+            {
+                CGM_ClearScreen();
+                CGM_DisplayText("Wi-Fi Connected.");
+                needToConnect = false;
+            }
+        }
+        else
+        {
+            if (!ReadBitmapStream())
+            {
+                needToConnect = true;
+            }  
+            else
+            {      
+                sleep_ms(1000);
+            }
+        }
     }
     
-    sleep_ms(1000);
+   
 
     while (true)
     {
-        CGM_ClearScreen();
+       
 
-        //ReadBitmapStream();
-        ReadTextStream();
+        ReadBitmapStream();
+        //ReadTextStream();
     }
-   
-
-    //CGM_printf("Silly Ela. your dog has a flat face");
-    //cyw43_arch_deinit();
-
 
     return 0;
 

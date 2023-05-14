@@ -13,6 +13,7 @@ class TcpConnection;
 class TcpUserEvent;
 
 
+
 enum ConnectionEvents
 {
     Connected = 1,
@@ -38,21 +39,24 @@ class TcpConnection
 {
 
     public:
-        TcpConnection(const char* address, u_int32_t port);
+        TcpConnection(const char* address, u_int32_t port, int timeOutSeconds);
         ~TcpConnection();
         void StartConnect();
         TcpUserEvent* DequeueEvent();
         void SendData(uint8_t* buffer, uint16_t length);
         void Close();
         bool IsClosed();
+        bool HasTimedOut();
         
 
     private: 
         struct tcp_pcb *pcb;
+        u_int32_t id;
         ip_addr_t targetAddress;
         u_int32_t targetPort;
         TcpUserEvent* head;
         TcpUserEvent* tail;
+        clock_t	timesOutAt;
 
         err_t ClientConnected(err_t err);
         void ClientErrored(err_t err);
