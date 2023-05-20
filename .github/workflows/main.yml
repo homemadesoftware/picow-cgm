@@ -1,8 +1,18 @@
 name: Build
 
 on:
-  push:
-    branches: [ main ]
+  - push
+  - pull_request
+  - workflow_dispatch
+
+# Cancels old runs when new ones are triggered
+concurrency:
+  group: "${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+# Only has read permissions to the repo
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -24,8 +34,9 @@ jobs:
           git submodule update --init
 
       - name: Set environment variable
-        run: echo "PICO_SDK_PATH=$(pwd)/pico-sdk" >> $GITHUB_ENV |
-                echo "PICO_BOARD=pico_w" >>  $GITHUB_ENV
+        run: |
+          echo "PICO_SDK_PATH=$(pwd)/pico-sdk" >> $GITHUB_ENV |
+          echo "PICO_BOARD=pico_w" >>  $GITHUB_ENV
 
       - name: Build project
         run: |
@@ -33,7 +44,7 @@ jobs:
           cd build
           cmake ..
           make
-          
+
       - name: Upload uf2 file
         uses: actions/upload-artifact@v2
         with:
