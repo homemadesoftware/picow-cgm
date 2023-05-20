@@ -24,8 +24,8 @@ jobs:
           git submodule update --init
 
       - name: Set environment variable
-        run: echo "PICO_SDK_PATH=$(pwd)/pico-sdk" >> $GITHUB_ENV
-        run: echo "PICO_BOARD=pico_w" >>  $GITHUB_ENV
+        run: echo "PICO_SDK_PATH=$(pwd)/pico-sdk" >> $GITHUB_ENV |
+                echo "PICO_BOARD=pico_w" >>  $GITHUB_ENV
 
       - name: Build project
         run: |
