@@ -19,9 +19,9 @@ typedef struct tagWifiPoint
 
 WifiPoint wifiPoints[] = 
 {
-    {"You will be hacked", ""},
+    // {"You will be hacked", ""},
     {"WIFIHUB_d82510", "ntydtnkv"},
-    {"HC", "nfwi6536"},
+    // {"HC", "nfwi6536"},[
     {""},
 };
 
