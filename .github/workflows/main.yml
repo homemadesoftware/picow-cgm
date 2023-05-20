@@ -33,3 +33,9 @@ jobs:
           cd build
           cmake ..
           make
+          
+      - name: Upload uf2 file
+        uses: actions/upload-artifact@v2
+        with:
+          name: cgm_app-uf2
+          path: build/cgm_app.uf2
