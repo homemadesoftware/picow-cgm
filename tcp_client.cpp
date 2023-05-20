@@ -55,7 +55,9 @@ void TcpConnection::StartConnect()
     tcp_arg(this->pcb, this);
 
     // Set the callbacks
-    tcp_poll(this->pcb, tcp_client_polling, 10);
+    //tcp_poll(this->pcb, tcp_client_polling, 10);
+    tcp_poll(this->pcb, nullptr, 0);
+
     tcp_sent(this->pcb, tcp_client_data_sent);
     tcp_recv(this->pcb, tcp_client_data_received);
     tcp_err(this->pcb, tcp_client_errored);

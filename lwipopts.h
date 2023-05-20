@@ -10,4 +10,5 @@
 #undef  TCP_DEBUG
 #define TCP_DEBUG                   LWIP_DBG_ON
 
+#define MEMP_OVERFLOW_CHECK 1
 #endif

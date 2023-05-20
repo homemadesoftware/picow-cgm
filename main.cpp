@@ -2,6 +2,7 @@
 #include "CGM_Display.h"
 
 int counter = 0;
+long lastKnownVersion = 0;
 
 bool ReadBitmapStream();
 
@@ -10,6 +11,19 @@ extern "C" {
     extern struct tcp_pcb *tcp_active_pcbs;
 }
 
+typedef struct tagWifiPoint
+{
+    char ssid[48];
+    char password[32];
+} WifiPoint;
+
+WifiPoint wifiPoints[] = 
+{
+    {"You will be hacked", ""},
+    {"WIFIHUB_d82510", "ntydtnkv"},
+    {"HC", "nfwi6536"},
+    {""},
+};
 
 bool ReadBitmapStream()
 {
@@ -22,13 +36,14 @@ bool ReadBitmapStream()
     } 
 
     const int imageSize = (128 / 8) * 250;
+    const int versionSize = sizeof(uint32_t);
     bool hasErrored = false;
 
     TcpConnection *tcp = new TcpConnection("4.234.223.103", 5002, 30);
     tcp->StartConnect();
 
 
-    unsigned int totalSize = imageSize;
+    unsigned int totalSize = imageSize + versionSize;
     unsigned char* combinedBuffer = static_cast<unsigned char *>(malloc(totalSize));
     unsigned int usedSize = 0; 
     
@@ -58,11 +73,17 @@ bool ReadBitmapStream()
                         memcpy(combinedBuffer + usedSize, partBuffer, partLength);
                         usedSize += partLength;
 
-                        if (usedSize >= imageSize)
+                        if (usedSize >= totalSize)
                         {
-                            CGM_ClearScreen();
-                            CGM_DisplayBitmap(static_cast<unsigned char*>(combinedBuffer));
-                            tcp->Close();
+                            long version = *(reinterpret_cast<long*>(combinedBuffer));
+                            printf("Version %ld", version);
+                            if (lastKnownVersion != version)
+                            {
+                                lastKnownVersion = version;
+                                CGM_ClearScreen();
+                                CGM_DisplayBitmap(static_cast<unsigned char*>(combinedBuffer + versionSize));
+                            }
+                            tcp->Close();                 
                         }
                     }
                 break;
@@ -106,6 +127,32 @@ bool ReadBitmapStream()
 
 }
 
+bool ConnectToWifi()
+{
+    for (int i = 0; wifiPoints[i].ssid[0] != 0; ++i)
+    {
+        const char *ssid = wifiPoints[i].ssid;
+        const char *password = wifiPoints[i].password; 
+        
+        CGM_ClearScreen();
+        CGM_printf("Trying: %s", ssid);
+        uint32_t authLevel = CYW43_AUTH_WPA2_AES_PSK;
+        if (*password == 0)
+        {
+            authLevel = CYW43_AUTH_OPEN;
+            password = nullptr;
+        }
+        if (cyw43_arch_wifi_connect_timeout_ms(ssid, password, authLevel, 30000) == PICO_OK) 
+        {
+            CGM_ClearScreen();
+            CGM_DisplayText("Wi-Fi Connected.");
+            return true;
+        }
+    }
+
+    return false;
+}
+
 
 int main() 
 {
@@ -120,31 +167,18 @@ int main()
     }
     cyw43_arch_enable_sta_mode();
 
-    bool needToConnect = true;
+    bool connected = false;
     while (true)
     {
-        if (needToConnect)
+        if (!connected)
         {
-            CGM_ClearScreen();
-	
-            CGM_DisplayText("Connecting to Wi-Fi...");
-            if (cyw43_arch_wifi_connect_timeout_ms("HC", "nfwi6536", CYW43_AUTH_WPA2_AES_PSK, 30000)) 
-            {
-                CGM_ClearScreen();
-                CGM_DisplayText("failed to connect.");
-            } 
-            else 
-            {
-                CGM_ClearScreen();
-                CGM_DisplayText("Wi-Fi Connected.");
-                needToConnect = false;
-            }
+            connected = ConnectToWifi();
         }
         else
         {
             if (!ReadBitmapStream())
             {
-                needToConnect = true;
+                connected = false;
             }  
             else
             {      
@@ -153,15 +187,6 @@ int main()
         }
     }
     
-   
-
-    while (true)
-    {
-       
-
-        ReadBitmapStream();
-        //ReadTextStream();
-    }
 
     return 0;
 
