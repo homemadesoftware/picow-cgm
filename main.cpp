@@ -1,8 +1,11 @@
 #include "tcp_client.h"
 #include "CGM_Display.h"
+#include "hardware/watchdog.h"
+
 
 int counter = 0;
 long lastKnownVersion = 0;
+bool watchDogReboot = false;
 
 bool ReadBitmapStream();
 
@@ -49,7 +52,8 @@ bool ReadBitmapStream()
     
     while (true)
     {
-        printf(".");
+        watchdog_update();
+        printf(watchDogReboot ? "¬" : ".");
         TcpUserEvent* nextEvent;
         nextEvent = tcp->DequeueEvent();
 
@@ -133,8 +137,16 @@ bool ConnectToWifi()
     {
         const char *ssid = wifiPoints[i].ssid;
         const char *password = wifiPoints[i].password; 
-        
+
         CGM_ClearScreen();
+   
+        if (cyw43_arch_init()) 
+        {
+            CGM_DisplayText("failed to initialise");
+            return 1;
+        }
+        cyw43_arch_enable_sta_mode();
+
         CGM_printf("Trying: %s", ssid);
         uint32_t authLevel = CYW43_AUTH_WPA2_AES_PSK;
         if (*password == 0)
@@ -142,12 +154,17 @@ bool ConnectToWifi()
             authLevel = CYW43_AUTH_OPEN;
             password = nullptr;
         }
-        if (cyw43_arch_wifi_connect_timeout_ms(ssid, password, authLevel, 30000) == PICO_OK) 
+        for (int i = 0; i < 30; ++i)
         {
-            CGM_ClearScreen();
-            CGM_DisplayText("Wi-Fi Connected.");
-            return true;
+            if (cyw43_arch_wifi_connect_timeout_ms(ssid, password, authLevel, 1000) == PICO_OK) 
+            {
+                CGM_ClearScreen();
+                CGM_DisplayText("Wi-Fi Connected.");
+                return true;
+            } 
+            watchdog_update();
         }
+       cyw43_arch_deinit();
     }
 
     return false;
@@ -158,14 +175,20 @@ int main()
 {
     stdio_init_all();
 
+    if (watchdog_caused_reboot()) 
+    {
+        printf("Rebooted by Watchdog!\n");
+        watchDogReboot = true;
+    } 
+    else 
+    {
+        printf("Clean boot\n");
+    }
+    
+    watchdog_enable(8000, 1);
+
     CGM_InitDisplay();
 
-    if (cyw43_arch_init()) 
-    {
-        CGM_DisplayText("failed to initialise");
-        return 1;
-    }
-    cyw43_arch_enable_sta_mode();
 
     bool connected = false;
     while (true)
@@ -185,6 +208,8 @@ int main()
                 sleep_ms(1000);
             }
         }
+        watchdog_update();
+
     }
     
 
