@@ -42,7 +42,9 @@ bool ReadBitmapStream()
     const int versionSize = sizeof(uint32_t);
     bool hasErrored = false;
 
-    TcpConnection *tcp = new TcpConnection("4.234.223.103", 5002, 30);
+    //TcpConnection *tcp = new TcpConnection("4.234.223.103", 5002, 30);  // Azure Server
+    TcpConnection *tcp = new TcpConnection("81.187.255.239", 5002, 30); // Raspberry Pi at Toadhall
+
     tcp->StartConnect();
 
 
@@ -164,6 +166,7 @@ bool ConnectToWifi()
             } 
             watchdog_update();
         }
+       cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
        cyw43_arch_deinit();
     }
 
