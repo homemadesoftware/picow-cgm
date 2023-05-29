@@ -23,6 +23,7 @@ typedef struct tagWifiPoint
 WifiPoint wifiPoints[] = 
 {
     {"WIFIHUB_d82510", "ntydtnkv"},
+    {"FRITZ!Box 7430 WO", "80031011246998990386"},
     {"You will be hacked", ""},
     {"HC", "nfwi6536"},
     {""},
